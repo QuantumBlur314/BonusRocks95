@@ -3,6 +3,8 @@ using JetBrains.Annotations;
 using OWML.Common;
 using OWML.ModHelper;
 using OWML.ModHelper.Events;
+using System.Collections.Generic;
+using System.Diagnostics.Eventing.Reader;
 using System.Reflection;
 using UnityEngine;
 
@@ -21,7 +23,7 @@ namespace BonusRocks95
             Instance = this;
         }
 
-        public void Start()
+        private void Start()
         {
             BonusRocks95.Instance.ModHelper.Console.WriteLine($"{nameof(BonusRocks95)} rocks into battle 95 times.", MessageType.Success);
 
@@ -33,27 +35,28 @@ namespace BonusRocks95
             };
             BonusRocks95.Instance.ModHelper.Console.WriteLine($"{nameof(BonusRocks95)} settings begin screaming backwards", MessageType.Info);
         }
-
         public override void Configure(IModConfig config)
         {
             BonusRocks95.Instance.bRHolesShrinkStars = BonusRocks95.Instance.ModHelper.Config.GetSettingsValue<bool>("Shrink Stars");
             ModHelper.Console.WriteLine($"Shrink Stars: {bRHolesShrinkStars}");
         }
     }
-
     [HarmonyPatch]
     public class BonusRocks95PatchClass
     {
         [HarmonyPrefix, HarmonyPatch(typeof(BlackHoleVolume), nameof(BlackHoleVolume.Vanish))]
 
-        public static bool BlackHoleVolume_Vanish(OWRigidbody bodyToVanish)
+        //Prevents blackholes from vanishing the Sun - still shrinks tho
+        private static bool BlackHoleVolume_Vanish(OWRigidbody bodyToVanish)
         {
             return bodyToVanish != Locator._centerOfTheUniverse._staticReferenceFrame;
         }
 
-        [HarmonyPrefix, HarmonyPatch(typeof(VanishVolume), nameof(VanishVolume.Shrink))]
-        public static bool VanishVolume_Shrink(OWRigidbody bodyToShrink)
-        {
+    [HarmonyPrefix, HarmonyPatch(typeof(VanishVolume), nameof(VanishVolume.Shrink))]
+
+        private static bool VanishVolume_Shrink(VanishVolume __instance, OWRigidbody bodyToShrink)
+
+        {   //Whether sun shrinks in VanishVolumes
             if (BonusRocks95.Instance.bRHolesShrinkStars)
             { return true; }
 
@@ -61,8 +64,21 @@ namespace BonusRocks95
             return !isTheSun;
 
         }
- 
 
-    
+    [HarmonyPostfix, HarmonyPatch(typeof(VanishVolume), nameof(VanishVolume.Shrink))]
+        private static void VanishVolume_LogShrink(VanishVolume __instance, OWRigidbody bodyToShrink)
+
+        {   //Debug: Send the game's list of _shrinkingBodies to the logs to find out if the Sun's stuck in the list
+            BonusRocks95.Instance.ModHelper.Console.WriteLine($"_shrinkingBodies list contains:");
+            foreach (var stupidbodies in __instance._shrinkingBodies) BonusRocks95.Instance.ModHelper.Console.WriteLine(stupidbodies.ToString());
+            
+        }
+    [HarmonyPatch(typeof(WhiteHoleVolume), nameof(WhiteHoleVolume.AddToGrowQueue))]
+        private static void WhiteHoleVolume_LogGrow(WhiteHoleVolume __instance, OWRigidbody bodyToGrow)
+
+        {   //Debug: Log the game's list of _bodiesToGrow whenever AddToGrowQueue happens, to find out why the sun's not growing back
+            BonusRocks95.Instance.ModHelper.Console.WriteLine($"_growQueue list contains:");
+            foreach (var tinybodies in __instance._growQueue) BonusRocks95.Instance.ModHelper.Console.WriteLine(tinybodies.ToString());
+        }
     }
 }
