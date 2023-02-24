@@ -40,6 +40,8 @@ namespace BonusRocks95
             BonusRocks95.Instance.bRHolesShrinkStars = BonusRocks95.Instance.ModHelper.Config.GetSettingsValue<bool>("Shrink Stars");
             ModHelper.Console.WriteLine($"Shrink Stars: {bRHolesShrinkStars}");
         }
+
+        public virtual void 
     }
     [HarmonyPatch]
     public class BonusRocks95PatchClass
