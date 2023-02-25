@@ -9,6 +9,7 @@
 
     "Stunlock Unwitting AstrBodies": true,
     "Shrink Stars": false,
+    "Warp Pad Window (default 5)": 5,
 
     "Holestorm Intensity": {
       "type": "slider",
