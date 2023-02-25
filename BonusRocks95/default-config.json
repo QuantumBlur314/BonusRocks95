@@ -17,7 +17,10 @@
       "value": 0
     },
 
+    "Your Powers:": { "type": "separator"},
 
+    "Big Your Ball": "B",
+    "Small Your Ball": "N", 
 
     "Planet Activities": {
       "type": "separator"
