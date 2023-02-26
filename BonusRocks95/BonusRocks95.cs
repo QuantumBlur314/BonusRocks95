@@ -22,9 +22,9 @@ namespace BonusRocks95
     //ToDo list:  A.) hijack OWRigidBody's UpdteCenterOfMass to tweak ship's center of mass, B.) Increase warp tower tolerances + edit corresponding Nomai text 4TehLulz
     public class BonusRocks95 : ModBehaviour
     {
-        public static List<AstroObject> _AllAstroObjectsListWhy = new();  //UNTIL I FIGURE OUT HOW NOT TO DO THIS
-        public static List<AstroObject> _VanishBlacklist = new();   //The goal: Add sun to blacklist by default, or any AstroObject.Type.Star then other stuff 
-        public static List<AstroObject> _ShrinkBlacklist = new();   //ALSO THIS IS SUPPOSED TO SAVE POOR PLANETS FROM ENDING UP PERMASHRUNK      
+
+        public static List<OWRigidbody> _VanishBlacklist = new();   //The goal: Add sun to blacklist by default, or any AstroObject.Type.Star then other stuff 
+        public static List<OWRigidbody> _ShrinkBlacklist = new();   //ALSO THIS IS SUPPOSED TO SAVE POOR PLANETS FROM ENDING UP PERMASHRUNK      
         public bool bRHolesShrinkStars;                    //Toggles whether stars are on the shrink blacklist
         public bool bRHolesWarpUnmarkedBodies;
         public static List<OWRigidbody> _bR95growQueue = new(8);//establishes my own _growQueue (with blackjack, and hookers)
@@ -46,17 +46,17 @@ namespace BonusRocks95
             LoadManager.OnCompleteSceneLoad += (scene, loadScene) =>
             {
                 if (loadScene != OWScene.SolarSystem) return;                    //If the loaded scene isn't SolarSystem, disregard the rest of this method
-                _AllAstroObjectsListWhy = Resources.FindObjectsOfTypeAll<AstroObject>().ToList();    //fills _AllAstroObjectsListWhy list with every astroobject (why
-                                                                                                     
-                StarsOnVanishBlacklist();                 //places stars on vanish blacklist
+             
 
-                ModHelper.Console.WriteLine($"AstroObjects on VanishBlacklist:", MessageType.Success);
+                PutAnyOnVanishBlacklist();                 //any Star-type AstroBodies in _AllAstroObjectsListWhy get put on the _VanishBlacklist
 
-                foreach (var astralobject in BonusRocks95._VanishBlacklist)                   //for each astral object in the _VanishBlacklist,
+                ModHelper.Console.WriteLine($"RIGIDBODIES on VanishBlacklist:", MessageType.Success);
+
+                foreach (var rigidbody in BonusRocks95._VanishBlacklist)                   //for each astral object in the _AllAstroObjectsListWhy
                 {
-                    if (astralobject != null)
+                    if (rigidbody != null)
                     {
-                        BonusRocks95.Instance.ModHelper.Console.WriteLine(astralobject.ToString());         //Prints the occupants of _warpTweakQueue to the logs
+                        BonusRocks95.Instance.ModHelper.Console.WriteLine(rigidbody.ToString());         //Prints the occupants to the logs
                     }
                 }
             };
@@ -64,7 +64,8 @@ namespace BonusRocks95
         public override void Configure(IModConfig config)
         {
             BonusRocks95.Instance.bRHolesShrinkStars = BonusRocks95.Instance.ModHelper.Config.GetSettingsValue<bool>("Shrink Stars");
-            ModHelper.Console.WriteLine($"Shrink Stars: {bRHolesShrinkStars}");
+
+            BonusRocks95.Instance.bRHolesWarpUnmarkedBodies = BonusRocks95.Instance.ModHelper.Config.GetSettingsValue<bool>("Stunlock Unwitting AstroObjects");
 
             Big = (Key)System.Enum.Parse(typeof(Key), config.GetSettingsValue<string>("Big Your Ball"));
             ModHelper.Console.WriteLine($"Button of Big a Ball: {Big}");
@@ -95,6 +96,16 @@ namespace BonusRocks95
                 };
             }
         }
+        private bool ApplyFilter(AstroObject astroObject)                //When called, returns any AstroObject that fits its filters (CAN BE CALLED FOR BOTH SHRINK AND VANISH BLACKLISTS, THANKS XEN)
+        { return astroObject.GetAstroObjectType() == AstroObject.Type.Star; } //xen told me to do this and ASSURES me it is correct and I believe him :)
+        private void PutAnyOnVanishBlacklist()                    //Blacklists all RIGIDBODIES of type "Star" from being warped
+        {
+            _VanishBlacklist = Resources.FindObjectsOfTypeAll<AstroObject>().Where(ApplyFilter).Select(x => x.GetAttachedOWRigidbody()).ToList();  //Finds AstroObjects of any type specified in ApplyFilter, gets any attached OWRigidbodies, then puts them into _VanishBlacklist
+
+        }
+
+
+//GROWQUEUE NONSENSE:
         private void AddToCustomGrowQueue(OWRigidbody bodyToGrow)
         {
             bodyToGrow.SetLocalScale(Vector3.one * 0.1f);  //call AddSunToCustomGrowQueue(your preferred body here) to shrink it to 0.1x its current size, then watch it grow (why tho)
@@ -105,17 +116,7 @@ namespace BonusRocks95
 
             };
         }
-        private static void StarsOnVanishBlacklist()                    //Blacklists all AstroObjects of type "Star" from being warped
-        {
-            foreach (var ofallthefellas in BonusRocks95._AllAstroObjectsListWhy)
-            {
-                if (ofallthefellas != null && ofallthefellas.GetAstroObjectType() == AstroObject.Type.Star)
-                {
-                    if (!BonusRocks95._VanishBlacklist.Contains(ofallthefellas))
-                        BonusRocks95._VanishBlacklist.Add(ofallthefellas);
-                };
-            }
-        }
+
         private void FixedUpdate()  //stolen from WhiteHoleVolume.FixedUpdate then mangled beyond recognition
         {
             if (_bR95growingBody != null)
@@ -155,11 +156,11 @@ namespace BonusRocks95
             [HarmonyPrefix, HarmonyPatch(typeof(BlackHoleVolume), nameof(BlackHoleVolume.Vanish))]
 
             //Prevents blackholes from vanishing the Sun - still shrinks tho
-            private static bool DontVanishBlacklistedBodies(AstroObject bodyToVanish)
+            private static bool DontVanishBlacklistedBodies(OWRigidbody bodyToVanish)
             {
-                if (BonusRocks95._VanishBlacklist.Contains(bodyToVanish))
+                if (BonusRocks95._VanishBlacklist.Contains(bodyToVanish))      //No longer messy, thanks Xen!  Now bodyToVanish is already an OWRigidbody
+                { return false; }
                 { return true; }
-                return false;
             }
 
             [HarmonyPrefix, HarmonyPatch(typeof(VanishVolume), nameof(VanishVolume.Shrink))]
@@ -172,15 +173,6 @@ namespace BonusRocks95
 
                 bool isTheSun = bodyToShrink == Locator._centerOfTheUniverse._staticReferenceFrame;  //at the moment this seems to prevent other things (such as BH fragments) from shrinking in VanishVolumes.  Fix this
                 return !isTheSun;
-
-            }
-
-            [HarmonyPostfix, HarmonyPatch(typeof(VanishVolume), nameof(VanishVolume.Shrink))]
-            private static void VanishVolume_LogShrink(VanishVolume __instance)
-
-            {   //Debug: Send the game's list of _shrinkingBodies to the logs to find out if the Sun's stuck in the list
-                BonusRocks95.Instance.ModHelper.Console.WriteLine($"_shrinkingBodies list contains:");
-                foreach (var stupidbodies in __instance._shrinkingBodies) BonusRocks95.Instance.ModHelper.Console.WriteLine(stupidbodies.ToString());
 
             }
 
