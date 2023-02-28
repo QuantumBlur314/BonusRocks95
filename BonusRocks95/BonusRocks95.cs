@@ -48,7 +48,10 @@ namespace BonusRocks95
                 if (loadScene != OWScene.SolarSystem) return;                    //If the loaded scene isn't SolarSystem, disregard the rest of this method
 
 
-                UpdateVanishBlacklist();                 //any Star-type AstroBodies in _AllAstroObjectsListWhy get put on the _VanishBlacklist
+                ModHelper.Events.Unity.FireOnNextUpdate(() =>
+                {
+                    UpdateVanishBlacklist();
+                });                                                     //any Star-type AstroBodies in _AllAstroObjectsListWhy get put on the _VanishBlacklist
 
                 ModHelper.Console.WriteLine($"RIGIDBODIES on VanishBlacklist:", MessageType.Success);
 
@@ -67,9 +70,11 @@ namespace BonusRocks95
 
             BonusRocks95.Instance.bRHolesWarpUnmarkedBodies = BonusRocks95.Instance.ModHelper.Config.GetSettingsValue<bool>("Stunlock Unwitting AstroObjects");
 
+
             Big = (Key)System.Enum.Parse(typeof(Key), config.GetSettingsValue<string>("Big Your Ball"));
             Small = (Key)System.Enum.Parse(typeof(Key), config.GetSettingsValue<string>("Small Your Ball"));
 
+            UpdateVanishBlacklist();
 
         }
         private void Update()   //Keybinding code lovingly stolen from BlackHolePortalGun by NagelId, who added keybinding to BHPG specifically because I suggested it.
@@ -81,7 +86,7 @@ namespace BonusRocks95
             }
 
             if (BigBubbon && !BonusRocks95._bR95growQueue.Contains(Locator._centerOfTheUniverse._staticReferenceFrame))  //GOAL: stop looking for the sun in growqueue, although don't add anything not already there
-            {  
+            {
 
                 AddToCustomGrowQueue(Locator._centerOfTheUniverse._staticReferenceFrame);                //add everything in the shrink blacklist to customgrowqueue
                 BonusRocks95.Instance.ModHelper.Console.WriteLine($"GrowQueue updated:");
@@ -98,13 +103,20 @@ namespace BonusRocks95
 
         { }
         private void GrowShrunkenBodies()
-        {        }
+        { }
         private void UpdateVanishBlacklist()                    //Blacklists all RIGIDBODIES of type "Star" from being warped
         {
             _VanishBlacklist = Resources.FindObjectsOfTypeAll<AstroObject>().
                 Where(ApplyFilter).Select(x => x.GetAttachedOWRigidbody()).ToList();  //Finds AstroObjects of any type specified in ApplyFilter,
-        }                                                                               //gets attached OWRigidbodies for each , then puts them into _VanishBlacklist
 
+            foreach (var unvanishable in BonusRocks95._VanishBlacklist)
+            {
+                if (unvanishable != null)
+                {
+                    BonusRocks95.Instance.ModHelper.Console.WriteLine(unvanishable.ToString());
+                }
+            }                                                                               //gets attached OWRigidbodies for each , then puts them into _VanishBlacklist
+        }
         private bool ApplyFilter(AstroObject astroObject)                //When called, returns any AstroObject that fits its filters (CAN BE CALLED FOR BOTH SHRINK AND VANISH BLACKLISTS, THANKS XEN)
         {
             var filter = astroObject.GetAstroObjectType() == AstroObject.Type.Star
@@ -114,7 +126,7 @@ namespace BonusRocks95
                     || astroObject.GetAstroObjectType() == AstroObject.Type.Planet
                     || astroObject.GetAstroObjectType() == AstroObject.Type.Moon;
             return filter;
-        }         
+        }
 
 
         //GROWQUEUE NONSENSE:
@@ -156,7 +168,7 @@ namespace BonusRocks95
         {
             body.SetLocalScale(Vector3.one);
         }
-        private void 
+
         [HarmonyPatch]
         public class BonusRocks95PatchClass
         {
@@ -173,12 +185,11 @@ namespace BonusRocks95
 
             [HarmonyPrefix, HarmonyPatch(typeof(VanishVolume), nameof(VanishVolume.Shrink))]
 
-            private static bool VanishVolume_Shrink(VanishVolume __instance, OWRigidbody bodyToShrink)                         
+            private static bool VanishVolume_Shrink(VanishVolume __instance, OWRigidbody bodyToShrink)
 
             {   //Whether sun shrinks in VanishVolumes  (note: method sucks, once I can control sun scale manually, change what part of the base code this affects)
                 if (BonusRocks95.Instance.bRHolesShrinkStars)
                     return true;
-
                 bool isTheSun = bodyToShrink == Locator._centerOfTheUniverse._staticReferenceFrame;  //at the moment this seems to prevent other things (such as BH fragments) from shrinking in VanishVolumes.  Fix this
                 return !isTheSun;
 
