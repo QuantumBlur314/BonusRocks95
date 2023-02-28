@@ -26,11 +26,11 @@ namespace BonusRocks95
         public static List<OWRigidbody> _VanishBlacklist = new();   //The goal: Add sun to blacklist by default, or any AstroObject.Type.Star then other stuff 
         public static List<OWRigidbody> _ShrinkBlacklist = new();   //ALSO THIS IS SUPPOSED TO SAVE POOR PLANETS FROM ENDING UP PERMASHRUNK      
         public bool bRHolesShrinkStars;                    //Toggles whether stars are on the shrink blacklist
-        public bool bRHolesWarpUnmarkedBodies;
+        public bool bRHolesWarpUnmarkedBodies;             //Toggles whether 
         public static List<OWRigidbody> _bR95growQueue = new(8);//establishes my own _growQueue (with blackjack, and hookers)
         public OWRigidbody _bR95growingBody;
         public float _bR95nextGrowCheckTime;
-        public Key Big;
+        public Key Big;                                                 //Grows all OWRigidbodies on _VanishBlacklist to normal size
         public bool BigBubbon;
         public Key Small;
         public bool SmallBubbon;
@@ -46,9 +46,9 @@ namespace BonusRocks95
             LoadManager.OnCompleteSceneLoad += (scene, loadScene) =>
             {
                 if (loadScene != OWScene.SolarSystem) return;                    //If the loaded scene isn't SolarSystem, disregard the rest of this method
-             
 
-                PutAnyOnVanishBlacklist();                 //any Star-type AstroBodies in _AllAstroObjectsListWhy get put on the _VanishBlacklist
+
+                UpdateVanishBlacklist();                 //any Star-type AstroBodies in _AllAstroObjectsListWhy get put on the _VanishBlacklist
 
                 ModHelper.Console.WriteLine($"RIGIDBODIES on VanishBlacklist:", MessageType.Success);
 
@@ -68,24 +68,22 @@ namespace BonusRocks95
             BonusRocks95.Instance.bRHolesWarpUnmarkedBodies = BonusRocks95.Instance.ModHelper.Config.GetSettingsValue<bool>("Stunlock Unwitting AstroObjects");
 
             Big = (Key)System.Enum.Parse(typeof(Key), config.GetSettingsValue<string>("Big Your Ball"));
-            ModHelper.Console.WriteLine($"Button of Big a Ball: {Big}");
-
             Small = (Key)System.Enum.Parse(typeof(Key), config.GetSettingsValue<string>("Small Your Ball"));
-            ModHelper.Console.WriteLine($"Button of Small a Ball: {Small}");
+
 
         }
         private void Update()   //Keybinding code lovingly stolen from BlackHolePortalGun by NagelId, who added keybinding to BHPG specifically because I suggested it.
         {
             if (!OWInput.IsInputMode(InputMode.Menu))                //if the player isn't in the menu (RECOMMEND THIS TO BLOCKS MOD PERSON)
             {
-                BigBubbon = Keyboard.current[Big].wasPressedThisFrame; ;
+                BigBubbon = Keyboard.current[Big].wasPressedThisFrame; ;         //GOAL: 
                 SmallBubbon = Keyboard.current[Small].wasPressedThisFrame;   //BHPG listened for .wasReleasedThisFrame here; if this doesn't work, just do that
             }
 
-            if (BigBubbon && !BonusRocks95._bR95growQueue.Contains(Locator._centerOfTheUniverse._staticReferenceFrame))
-            {
+            if (BigBubbon && !BonusRocks95._bR95growQueue.Contains(Locator._centerOfTheUniverse._staticReferenceFrame))  //GOAL: stop looking for the sun in growqueue, although don't add anything not already there
+            {  
 
-                AddToCustomGrowQueue(Locator._centerOfTheUniverse._staticReferenceFrame);
+                AddToCustomGrowQueue(Locator._centerOfTheUniverse._staticReferenceFrame);                //add everything in the shrink blacklist to customgrowqueue
                 BonusRocks95.Instance.ModHelper.Console.WriteLine($"GrowQueue updated:");
                 foreach (var tinybodies in BonusRocks95._bR95growQueue)                   //for each tinybody object in the _bR95growQueue,
                 {
@@ -96,25 +94,35 @@ namespace BonusRocks95
                 };
             }
         }
-        private bool ApplyFilter(AstroObject astroObject)                //When called, returns any AstroObject that fits its filters (CAN BE CALLED FOR BOTH SHRINK AND VANISH BLACKLISTS, THANKS XEN)
-        { return astroObject.GetAstroObjectType() == AstroObject.Type.Star; } //xen told me to do this and ASSURES me it is correct and I believe him :)
-        private void PutAnyOnVanishBlacklist()                    //Blacklists all RIGIDBODIES of type "Star" from being warped
+        private void AddToShrinkBlacklist()
+
+        { }
+        private void GrowShrunkenBodies()
+        {        }
+        private void UpdateVanishBlacklist()                    //Blacklists all RIGIDBODIES of type "Star" from being warped
         {
-            _VanishBlacklist = Resources.FindObjectsOfTypeAll<AstroObject>().Where(ApplyFilter).Select(x => x.GetAttachedOWRigidbody()).ToList();  //Finds AstroObjects of any type specified in ApplyFilter, gets any attached OWRigidbodies, then puts them into _VanishBlacklist
+            _VanishBlacklist = Resources.FindObjectsOfTypeAll<AstroObject>().
+                Where(ApplyFilter).Select(x => x.GetAttachedOWRigidbody()).ToList();  //Finds AstroObjects of any type specified in ApplyFilter,
+        }                                                                               //gets attached OWRigidbodies for each , then puts them into _VanishBlacklist
 
-        }
+        private bool ApplyFilter(AstroObject astroObject)                //When called, returns any AstroObject that fits its filters (CAN BE CALLED FOR BOTH SHRINK AND VANISH BLACKLISTS, THANKS XEN)
+        {
+            var filter = astroObject.GetAstroObjectType() == AstroObject.Type.Star
+                || Locator._centerOfTheUniverse._staticReferenceFrame;
+
+            if (BonusRocks95.Instance.bRHolesWarpUnmarkedBodies) filter = filter
+                    || astroObject.GetAstroObjectType() == AstroObject.Type.Planet
+                    || astroObject.GetAstroObjectType() == AstroObject.Type.Moon;
+            return filter;
+        }         
 
 
-//GROWQUEUE NONSENSE:
+        //GROWQUEUE NONSENSE:
         private void AddToCustomGrowQueue(OWRigidbody bodyToGrow)
         {
             bodyToGrow.SetLocalScale(Vector3.one * 0.1f);  //call AddSunToCustomGrowQueue(your preferred body here) to shrink it to 0.1x its current size, then watch it grow (why tho)
-
             if (!BonusRocks95._bR95growQueue.Contains(bodyToGrow))
-            {
-                BonusRocks95._bR95growQueue.Add(bodyToGrow);
-
-            };
+            { BonusRocks95._bR95growQueue.Add(bodyToGrow); };
         }
 
         private void FixedUpdate()  //stolen from WhiteHoleVolume.FixedUpdate then mangled beyond recognition
@@ -148,7 +156,7 @@ namespace BonusRocks95
         {
             body.SetLocalScale(Vector3.one);
         }
-
+        private void 
         [HarmonyPatch]
         public class BonusRocks95PatchClass
         {
@@ -165,7 +173,7 @@ namespace BonusRocks95
 
             [HarmonyPrefix, HarmonyPatch(typeof(VanishVolume), nameof(VanishVolume.Shrink))]
 
-            private static bool VanishVolume_Shrink(VanishVolume __instance, OWRigidbody bodyToShrink)
+            private static bool VanishVolume_Shrink(VanishVolume __instance, OWRigidbody bodyToShrink)                         
 
             {   //Whether sun shrinks in VanishVolumes  (note: method sucks, once I can control sun scale manually, change what part of the base code this affects)
                 if (BonusRocks95.Instance.bRHolesShrinkStars)
