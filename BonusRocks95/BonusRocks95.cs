@@ -74,7 +74,7 @@ namespace BonusRocks95
             if (!bRShrinkStars)  //GOAL: stop looking for the sun in growqueue, although don't add anything not already there
             {
                 //add everything in the shrink blacklist to customgrowqueue
-  
+
                 foreach (var star in _stars)                   //for each tinybody object in the _bR95growQueue,
                 {
                     if (star != null && StarHasSmallRigidbody(star) && !_bR95growQueue.Contains(star))
@@ -106,7 +106,7 @@ namespace BonusRocks95
         }
         private bool StarHasSmallRigidbody(OWRigidbody rigidStar)
         {
-            var theAstro = rigidStar.GetRequiredComponent<AstroObject>();
+            var theAstro = rigidStar.GetRequiredComponentInChildren<AstroObject>();
             if (rigidStar?._scaleRoot != null && StarCenterDetector(theAstro))
             {
                 float itsSize = (float)(rigidStar?.GetLocalScale().x);
@@ -186,18 +186,17 @@ namespace BonusRocks95
             [HarmonyPrefix, HarmonyPatch(typeof(VanishVolume), nameof(VanishVolume.OnTriggerEnter))]
             private static bool MayItEnter(Collider hitCollider)    //PARAMETER MUST BE NAMED SAME AS BASE-GAME, DINGUS
             {
+                var bodyMayEnter = !Instance.IsImmuneToVanish(hitCollider?.GetRequiredComponentInChildren<AstroObject>());
                 if (hitCollider != null)  //i cannot understand what's happening here
                 {
-                    bool bodyMayEnter = !Instance.IsImmuneToVanish(hitCollider?.GetComponent<AstroObject>());
-                    if (bodyMayEnter)
-                    //if bodyThatsEntering IsImmuneToVanish (True), return "false" ("Don't TriggerEnter")
+                    //if bodyMayEnter IsImmuneToVanish (True), return "false" ("Don't TriggerEnter")
+                    if (bodyMayEnter == false)
                     {
-                        return true;
+                        Instance.ModHelper.Console.WriteLine($"Prevented {hitCollider?.GetAttachedOWRigidbody()?.ToString()} from vanishing");
+                        return false;
                     }
                 }
-                Instance.ModHelper.Console.WriteLine($"Prevented {hitCollider?.GetAttachedOWRigidbody().ToString()} from vanishing");
-                return false;
-
+                return bodyMayEnter;
             }
         }
     }
