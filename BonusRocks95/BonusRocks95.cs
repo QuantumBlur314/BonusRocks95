@@ -31,10 +31,7 @@ namespace BonusRocks95
         public static List<OWRigidbody> _bR95growQueue = new(8);//establishes my own _growQueue (with blackjack, and hookers)
         public OWRigidbody _bR95growingBody;
         public float _bR95nextGrowCheckTime;
-        public Key Big;                                                 //Grows all OWRigidbodies on _VanishBlacklist to normal size
-        public bool BigBubbon;
-        public Key Small;
-        public bool SmallBubbon;
+
         public static BonusRocks95 Instance;
         public void Awake()
         {
@@ -67,27 +64,22 @@ namespace BonusRocks95
         {
             Instance.bRShrinkStars = Instance.ModHelper.Config.GetSettingsValue<bool>("Shrink Stars");
             Instance.bRPlanetsDontSlurp = Instance.ModHelper.Config.GetSettingsValue<bool>("Immunize Major Bodies Against VanishVolumes");
-
-            Big = (Key)System.Enum.Parse(typeof(Key), config.GetSettingsValue<string>("Big Your Ball"));
-            Small = (Key)System.Enum.Parse(typeof(Key), config.GetSettingsValue<string>("Small Your Ball"));
+            ;
 
             //UpdateBlacklist();          //BLACKLIST NO LONGER NECESSARY, JUST SHRINK SUNS WITH TOGGLE
         }
         public void Update()   //Keybinding code lovingly stolen from BlackHolePortalGun by NagelId, who added keybinding to BHPG specifically because I suggested it.
         {
-            if (!OWInput.IsInputMode(InputMode.Menu))                //if the player isn't in the menu (RECOMMEND THIS TO BLOCKS MOD PERSON)
-            {
-                BigBubbon = Keyboard.current[Big].wasPressedThisFrame; ;         //GOAL: 
-                SmallBubbon = Keyboard.current[Small].wasPressedThisFrame;   //BHPG listened for .wasReleasedThisFrame here; if this doesn't work, just do that
-            }
+
             if (!bRShrinkStars)  //GOAL: stop looking for the sun in growqueue, although don't add anything not already there
             {
                 //add everything in the shrink blacklist to customgrowqueue
-                Instance.ModHelper.Console.WriteLine($"Stars detected:");
+  
                 foreach (var star in _stars)                   //for each tinybody object in the _bR95growQueue,
                 {
                     if (star != null && StarHasSmallRigidbody(star) && !_bR95growQueue.Contains(star))
                     {
+                        Instance.ModHelper.Console.WriteLine("Shrinking Stars...");
                         { _bR95growQueue.Add(star); }
                     }
                 };
@@ -96,6 +88,7 @@ namespace BonusRocks95
                 if (bRShrinkStars && !StarHasSmallRigidbody(normalStar))
                 {
                     normalStar.SetLocalScale(Vector3.one * 0.1f);
+                    Instance.ModHelper.Console.WriteLine("Growing Stars...");
                 }
         }
         //IF bRHolesShrinkStars IS ACTIVE, JUST SHRINK ALL STARS IMMEDIATELY.  GET RID OF THE VANISH PATCH
@@ -134,7 +127,7 @@ namespace BonusRocks95
                 var filter = astroObject.GetAstroObjectType() == AstroObject.Type.Star
                 || Locator._centerOfTheUniverse._staticReferenceFrame;
 
-                if (Instance.bRPlanetsDontSlurp && astroObject != null) filter =
+                if (Instance.bRPlanetsDontSlurp) filter =
                         filter                                                           //Yes, it's either a star
                         || astroObject.GetAstroObjectType() == AstroObject.Type.Planet  //or a planet,
                         || astroObject.GetAstroObjectType() == AstroObject.Type.Moon;  //or a moon, don't warp it
@@ -190,30 +183,22 @@ namespace BonusRocks95
             //{
             //    return !_VanishBlacklist.Contains(bodyToVanish);     //No longer messy, thanks Xen!  Now bodyToVanish is already an OWRigidbody
             // }
-
             [HarmonyPrefix, HarmonyPatch(typeof(VanishVolume), nameof(VanishVolume.OnTriggerEnter))]
-            private static bool IsItBarredFromEntry(Collider hitCollider)    //PARAMETER MUST BE NAMED SAME AS BASE-GAME, DINGUS
+            private static bool MayItEnter(Collider hitCollider)    //PARAMETER MUST BE NAMED SAME AS BASE-GAME, DINGUS
             {
-                if (hitCollider != null)
+                if (hitCollider != null)  //i cannot understand what's happening here
                 {
-                    try
+                    bool bodyMayEnter = !Instance.IsImmuneToVanish(hitCollider?.GetComponent<AstroObject>());
+                    if (bodyMayEnter)
+                    //if bodyThatsEntering IsImmuneToVanish (True), return "false" ("Don't TriggerEnter")
                     {
-                        var blockedABody = !Instance.IsImmuneToVanish(hitCollider?.GetComponent<AstroObject>());
-                        {
-                            if (blockedABody)
-                            //if bodyThatsEntering IsImmuneToVanish (True), return "false" ("Don't TriggerEnter")
-                            { Instance.ModHelper.Console.WriteLine($"Prevented {hitCollider?.GetComponent<OWRigidbody>().ToString()} from vanishing"); }
-                            return blockedABody;
-                        }
-                    }
-                    catch (Exception)
-                    {
-                        Instance.ModHelper.Console.WriteLine($"Couldn't find hitCollider at {hitCollider.GetComponent<AstroObject>()}!  Try giving up!", MessageType.Error);
+                        return true;
                     }
                 }
-                { return true; }
-            }
+                Instance.ModHelper.Console.WriteLine($"Prevented {hitCollider?.GetAttachedOWRigidbody().ToString()} from vanishing");
+                return false;
 
+            }
         }
     }
 }
