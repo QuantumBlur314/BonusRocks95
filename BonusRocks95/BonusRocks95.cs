@@ -24,7 +24,7 @@ namespace BonusRocks95
     //ToDo list:  A.) hijack OWRigidBody's UpdteCenterOfMass to tweak ship's center of mass, B.) Increase warp tower tolerances + edit corresponding Nomai text 4TehLulz
     public class BonusRocks95 : ModBehaviour
     {
-        public static List<OWRigidbody> _allRigidbodiesIYield = new();
+        public static List<OWRigidbody> _filteredBodies = new();
         public static List<OWRigidbody> _stars = new();   //The goal: Add sun to blacklist by default, or any AstroObject.Type.Star then other stuff 
         public bool bRShrinkStars;                    //Toggles whether stars are on the shrink blacklist
         public bool bRPlanetsDontSlurp;             //Toggles whether 
@@ -47,16 +47,8 @@ namespace BonusRocks95
 
                 ModHelper.Events.Unity.FireOnNextUpdate(() =>
                 {
-                    StarsToList();
-                    ModHelper.Console.WriteLine($"Stars detected:", MessageType.Success);
-
-                    foreach (var rigidbody in _stars)                   //for each astral object in the _AllAstroObjectsListWhy
-                    {
-                        if (rigidbody != null)
-                        {
-                            Instance.ModHelper.Console.WriteLine(rigidbody.ToString());         //Prints the occupants to the logs
-                        }
-                    }
+                    List_Stars();                           //ALSO MAKE A LIST OF BODIES TO BLACKLIST
+                    List_FilteredBodies();
                 });                                                  //any Star-type AstroBodies in _AllAstroObjectsListWhy get put on the 
             };
         }
@@ -65,7 +57,68 @@ namespace BonusRocks95
             Instance.bRShrinkStars = Instance.ModHelper.Config.GetSettingsValue<bool>("Shrink Stars");
             Instance.bRPlanetsDontSlurp = Instance.ModHelper.Config.GetSettingsValue<bool>("Immunize Major Bodies Against VanishVolumes");
             //UpdateBlacklist();          //BLACKLIST NO LONGER NECESSARY, JUST SHRINK SUNS WITH TOGGLE
+            List_FilteredBodies();
         }
+
+        private void List_FilteredBodies()                         //Making it case-by-case means I might not need this blacklist at all, but it will be checking every time a collision occurs.  idk
+        {
+            _filteredBodies = Resources.FindObjectsOfTypeAll<AstroObject>().
+                Where(IsImmuneToVanish).Select(x => x.GetAttachedOWRigidbody()).ToList();  //Finds AstroObjects of any type specified in ApplyFilter, then spits out the attached rigidbody to _VanishBlacklist,
+            ModHelper.Console.WriteLine("Updated _filteredBodies list:");
+            foreach (var filteredBody in _filteredBodies)
+            {
+                if (filteredBody != null)
+                {
+                    ModHelper.Console.WriteLine(filteredBody.ToString());
+                }
+            }
+        }
+
+        private bool IsImmuneToVanish(AstroObject astroObject)                //Asks if astroObject is a star/center (or a planet/moon if WarpBodies is on); returns true if star, (and if planet) (THANKS XEN)
+        {
+            if (astroObject != null)
+            {
+                var filter = astroObject.GetAstroObjectType() == AstroObject.Type.Star
+                || Locator._centerOfTheUniverse._staticReferenceFrame;
+
+                if (Instance.bRPlanetsDontSlurp) filter =
+                        filter                                                           //Yes, it's either a star
+                        || astroObject.GetAstroObjectType() == AstroObject.Type.Planet  //or a planet,
+                        || astroObject.GetAstroObjectType() == AstroObject.Type.Moon;  //or a moon, don't warp it
+                return filter;                                                        //Don't warp it ("don't" means it returns true, as in "It's immune to vanishing" = true)
+            }
+            { return false; }                                                       //Otherwise, no, it's not immune, slurp to your dark bottomless heart's content
+        }
+
+        private void List_Stars()
+        {
+            _stars = Resources.FindObjectsOfTypeAll<AstroObject>().Where(StarCenterDetector)?.Select(x => x.GetAttachedOWRigidbody()).ToList();
+            ModHelper.Console.WriteLine("Stars Found:");
+            foreach (var unvanishable in _stars)
+            {
+                if (unvanishable != null)
+                {
+                    Instance.ModHelper.Console.WriteLine(unvanishable.ToString());
+                }
+            }                                                                               //gets attached OWRigidbodies for each
+        }
+
+        private bool StarHasSmallRigidbody(OWRigidbody rigidStar)
+        {
+            var theAstro = rigidStar.GetRequiredComponentInChildren<AstroObject>();
+            if (rigidStar?._scaleRoot != null && StarCenterDetector(theAstro))
+            {
+                float itsSize = (float)(rigidStar?.GetLocalScale().x);
+                return (itsSize < 1f);
+            }
+            return false;
+        }
+
+        private bool StarCenterDetector(AstroObject testIfStar)  //Asks if ORWigidbody's AstroObject type to see if it's a star.  Answer "yes" or "no", do you don't you, will you won't you, answer yes or no?
+        {
+            return testIfStar.GetAstroObjectType() == AstroObject.Type.Star;
+        }
+
         public void Update()   //Keybinding code lovingly stolen from BlackHolePortalGun by NagelId, who added keybinding to BHPG specifically because I suggested it.
         {
 
@@ -77,8 +130,9 @@ namespace BonusRocks95
                 {
                     if (star != null && StarHasSmallRigidbody(star) && !_bR95growQueue.Contains(star))
                     {
-                        Instance.ModHelper.Console.WriteLine("Shrinking Stars...");
-                        { _bR95growQueue.Add(star); }
+                        Instance.ModHelper.Console.WriteLine("Growing Stars...");
+                        //{ _bR95growQueue.Add(star); }
+                        _bR95growQueue = _stars;
                     }
                 };
             }
@@ -86,58 +140,8 @@ namespace BonusRocks95
                 if (bRShrinkStars && !StarHasSmallRigidbody(normalStar))
                 {
                     normalStar.SetLocalScale(Vector3.one * 0.1f);
+                    Instance.ModHelper.Console.WriteLine("Shrinking Stars...");
                 }
-        }
-        //IF bRHolesShrinkStars IS ACTIVE, JUST SHRINK ALL STARS IMMEDIATELY.  GET RID OF THE VANISH PATCH
-        //PATCH BLACK HOLE INTERACTIONS HIGHER UP TO NIP THEM IN THE BUD, LET PLANET WARP TOGGLE ACCESS THAT
-        private void StarsToList()
-        {
-            _stars = Resources.FindObjectsOfTypeAll<AstroObject>().Where(StarCenterDetector)?.Select(x => x.GetOWRigidbody()).ToList();
-            foreach (var unvanishable in _stars)
-            {
-                if (unvanishable != null)
-                {
-                    Instance.ModHelper.Console.WriteLine(unvanishable.ToString());
-                }
-            }                                                                               //gets attached OWRigidbodies for each
-        }
-        private bool StarHasSmallRigidbody(OWRigidbody rigidStar)
-        {
-            var theAstro = rigidStar.GetComponent<AstroObject>();
-            if (rigidStar?._scaleRoot != null && StarCenterDetector(theAstro))
-            {
-                float itsSize = (float)(rigidStar?.GetLocalScale().x);
-                Instance.ModHelper.Console.WriteLine($"{rigidStar} has scale of {itsSize}");
-                return (itsSize < 1f);
-            }
-            return false;
-        }
-        private void UpdateBlacklist()                         //Making it case-by-case means I might not need this blacklist at all, but it will be checking every time a collision occurs.  idk
-        {  //CAN I MAKE THIS ALSO DO RIGIDBODIES TO SIMPLIFY THINGS LOGIC-WISE?
-            _stars = Resources.FindObjectsOfTypeAll<AstroObject>().
-                Where(IsImmuneToVanish).Select(x => x.GetOWRigidbody()).ToList();  //Finds AstroObjects of any type specified in ApplyFilter, then spits out the attached rigidbody to _VanishBlacklist,
-        }
-        //v_v MAYBE PUT GETREQUIREDCOMPONENT IN HERE TOO?
-        private bool IsImmuneToVanish(AstroObject astroObject)                //Asks if astroObject is a star/center (or a planet/moon if WarpBodies is on); returns true if star, (and if planet) (THANKS XEN)
-        {
-            if (astroObject != null)
-            {
-                var filter = astroObject?.GetAstroObjectType() == AstroObject.Type.Star
-                || Locator._centerOfTheUniverse?._staticReferenceFrame;
-
-                if (Instance.bRPlanetsDontSlurp) filter =
-                        filter                                                           //Yes, it's either a star
-                        || astroObject?.GetAstroObjectType() == AstroObject.Type.Planet  //or a planet,
-                        || astroObject?.GetAstroObjectType() == AstroObject.Type.Moon;  //or a moon, don't warp it
-                BonusRocks95.Instance.ModHelper.Console.WriteLine($"{astroObject} triggered filter: {filter}");
-                return filter;                                                        //Don't warp it ("don't" means it returns true, as in "It's immune to vanishing" = true)
-            }
-            { return false; }                                                       //Otherwise, no, it's not immune, slurp to your dark bottomless heart's content
-        }
-
-        private bool StarCenterDetector(AstroObject testIfStar)  //Asks if ORWigidbody's AstroObject type to see if it's a star.  Answer "yes" or "no", do you don't you, will you won't you, answer yes or no?
-        {
-            return testIfStar.GetAstroObjectType() == AstroObject.Type.Star;
         }
 
         //GROWQUEUE NONSENSE:
@@ -149,7 +153,7 @@ namespace BonusRocks95
                 _bR95growingBody.SetLocalScale(_bR95growingBody.GetLocalScale() * 1.05f);
                 if (_bR95growingBody.GetLocalScale().x >= 1f)
                 {
-                    BR95FinishGrowing(_bR95growingBody);
+                    _bR95growingBody.SetLocalScale(Vector3.one); ; //BR95FinishGrowing(_bR95growingBody);  //Absorbed BR95FinishGrowing, since it's literally a single line without the relativePosition stuff
                     _bR95growingBody = null;
                     return;
                 }
@@ -169,40 +173,51 @@ namespace BonusRocks95
                 }
             }
         }
-        private void BR95FinishGrowing(OWRigidbody body)  //When BR95FinishGrowing() is called, it will expect whatever's in its parentheses to be OWRigidbody, and will treat them as "body"
+
+        private static bool PleaseMaamMayIPrivateMessageYou(Collider bumpedCollider)
         {
-            body.SetLocalScale(Vector3.one);
+            {
+                if (bumpedCollider.attachedRigidbody != null)  //The crime about to be committed was first performed by LocoChoco in Slate's Shipyard.  I desecrate in the craters of giants
+                {
+                    var bodyThatMightEnter = bumpedCollider.attachedRigidbody.GetComponent<AstroObject>();  //
+                    if (bodyThatMightEnter == null)  //if the AstroObject of the hitCollider's attached rigidbody is null,
+                    {
+                        bodyThatMightEnter = bumpedCollider.attachedRigidbody.GetComponentInChildren<AstroObject>(); //dig for the AstroObject in the rigidbody's children instead
+                    }
+                    if (bodyThatMightEnter != null && Instance.IsImmuneToVanish(bodyThatMightEnter)) //if the code-roomba found an AstroObject attached to bodyThatMightEnter,
+                    {
+                        Instance.ModHelper.Console.WriteLine($"Prevented {bumpedCollider?.GetAttachedOWRigidbody()?.ToString()} from vanishing");
+                        return false;
+                    }
+                }
+                return true;
+            }
         }
 
-
-
+        //private void BR95FinishGrowing(OWRigidbody body)  //When BR95FinishGrowing() is called, it will expect whatever's in its parentheses to be OWRigidbody, and will treat them as "body"
+        //{
+        // body.SetLocalScale(Vector3.one);      //note how, when you're doing something TO a class, it's the called parameter, then .MethodYouWantToExertOnIt(valuesThatTweakMethod)
+        //}
         //JUST PATCH OnTriggerEnter AND BE DONE WITH IT ALREADY
         [HarmonyPatch]
         public class BonusRocks95PatchClass
         {
-            //[HarmonyPrefix, HarmonyPatch(typeof(BlackHoleVolume), nameof(BlackHoleVolume.Vanish))]    //STILL NECESSARY APPARENTLY
-            //private static bool DontVanishBlacklistedBodies(OWRigidbody bodyToVanish)               //Prevents blackholes from vanishing the Sun - apparently even with all this
-
-            //return !_stars.Contains(bodyToVanish);     //No longer messy, thanks Xen!  Now bodyToVanish is already an OWRigidbody
-        }
-
-        [HarmonyPrefix, HarmonyPatch(typeof(VanishVolume), nameof(VanishVolume.OnTriggerEnter))]
-        private static bool WillItTriggerEnter(Collider hitCollider)    //PARAMETER MUST BE NAMED SAME AS BASE-GAME, DINGUS
-        {
-            if (hitCollider.attachedRigidbody != null)  //i cannot understand what's happening here
+            [HarmonyPrefix, HarmonyPatch(typeof(VanishVolume), nameof(VanishVolume.OnTriggerEnter))]
+            private static bool MayItEnter(Collider hitCollider, VanishVolume __instance)    //PARAMETER MUST BE NAMED SAME AS BASE-GAME, DINGUS
             {
-                bool bodyCantEnter = Instance.IsImmuneToVanish(hitCollider.attachedRigidbody.GetComponent<AstroObject>()); //body may enter IF it isn't Immune to Vanishing 
-                if (bodyCantEnter)
+                if (hitCollider.attachedRigidbody != null)  //The crime about to be committed was first performed by LocoChoco in Slate's Shipyard.  I desecrate in the craters of giants
                 {
-                    Instance.ModHelper.Console.WriteLine($"Prevented {hitCollider.GetAttachedOWRigidbody()} from vanishing");
-                    { return false; }
+                    var bodyThatMightEnter = hitCollider.GetAttachedOWRigidbody();  //
+                    if (bodyThatMightEnter != null && _filteredBodies.Contains(bodyThatMightEnter)) //  PUT IMMUNETOVANISH IN PleaseMaam Method ; if the code-roomba found an AstroObject attached to bodyThatMightEnter,
+                    {
+                        Instance.ModHelper.Console.WriteLine($"Prevented {hitCollider?.GetAttachedOWRigidbody()?.ToString()} from triggering {__instance} volume");
+                        return false;
+                    }
+                    Instance.ModHelper.Console?.WriteLine($"Let {hitCollider?.GetAttachedOWRigidbody()?.ToString()} through {__instance}");
                 }
-                Instance.ModHelper.Console.WriteLine($"Body {hitCollider.GetAttachedOWRigidbody()} entered volume? {bodyCantEnter}");
-                return bodyCantEnter;
+                return true;
             }
-            Instance.ModHelper.Console.WriteLine($"Warped {hitCollider.GetAttachedOWRigidbody()} with reckless abandon");
-            { return true; }
-
         }
     }
 }
+
