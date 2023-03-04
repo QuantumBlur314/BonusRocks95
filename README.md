@@ -1,2 +1,2 @@
 # BonusRocks95
- Prevent astral bodies from getting stuck in infinite teleportation loops for some reason
+Toggle smaller stars, tweak warp pad windows, and decree whether planets can be slurped up by VanishVolumes.
