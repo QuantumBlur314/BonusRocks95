@@ -25,7 +25,7 @@ namespace BonusRocks95
     public class BonusRocks95 : ModBehaviour
     {
         public static List<OWRigidbody> _filteredBodies = new();  
-        public static List<OWRigidbody> _starsAndCenters = new();
+        public static List<OWRigidbody> _foundStars = new();  //Mod only uses this to determine what to shrink, doesn
         public bool bRShrinkStars;                    //Toggles whether stars are on the shrink blacklist
         public bool bRPlanetsDontSlurp;             //Toggles whether 
         public static List<OWRigidbody> _bR95growQueue = new(8);//establishes my own _growQueue (with blackjack, and hookers)
@@ -53,7 +53,9 @@ namespace BonusRocks95
                     () =>
                 {
                     List_Stars();
-                    List_FilteredBodies();
+                    if (_foundStars.Count == 0)
+                    { ModHelper.Console.WriteLine("Damn it."); }
+                    List_FilteredBodies();  
                 }
                 );                                             
             };
@@ -69,7 +71,7 @@ namespace BonusRocks95
 
             List_FilteredBodies(); 
             UpdateWindows();
-
+            List_Stars();  //maybe sucks //edit: a nullref in HugMod was all it took to make this nonfunctional.  Learn to make more durable code
 
         }
 
@@ -103,15 +105,15 @@ namespace BonusRocks95
             { return false; }                                                       //Otherwise, no, it's not immune, slurp to your dark bottomless heart's content
         }
 
-        private void List_Stars()
+        private void List_Stars()  //why no work??? //edit: working now
         {
-            _starsAndCenters = Resources.FindObjectsOfTypeAll<AstroObject>().Where(StarCenterDetector)?.Select(x => x.GetAttachedOWRigidbody()).ToList();
+            _foundStars = Resources.FindObjectsOfTypeAll<AstroObject>().Where(StarDetector)?.Select(x => x.GetAttachedOWRigidbody()).ToList();
             ModHelper.Console.WriteLine("Stars Found",MessageType.Info);
-            foreach (var unvanishable in _starsAndCenters)
+            foreach (var unvanishable in _foundStars)
             {
                 if (unvanishable != null)
                 {
-                    Instance.ModHelper.Console.WriteLine(unvanishable.ToString());
+                    Instance.ModHelper.Console.WriteLine(unvanishable.ToString(),MessageType.Debug);
                 }
             }
         }
@@ -119,7 +121,7 @@ namespace BonusRocks95
         private bool StarHasSmallRigidbody(OWRigidbody rigidStar)
         {
             var theAstro = rigidStar.GetRequiredComponentInChildren<AstroObject>();
-            if (rigidStar?._scaleRoot != null && StarCenterDetector(theAstro))
+            if (rigidStar?._scaleRoot != null && StarDetector(theAstro))
             {
                 float itsSize = (float)(rigidStar?.GetLocalScale().x);
                 return (itsSize < 1f);
@@ -127,26 +129,26 @@ namespace BonusRocks95
             return false;
         }
 
-        private bool StarCenterDetector(AstroObject testIfStar)  //Asks if ORWigidbody's AstroObject type to see if it's a star.  Answer "yes" or "no", do you don't you, will you won't you, answer yes or no?
+        private bool StarDetector(AstroObject testIfStar)  //Asks if ORWigidbody's AstroObject type to see if it's a star.  Answer "yes" or "no", do you don't you, will you won't you, answer yes or no?
         {
-            return testIfStar.GetAstroObjectType() == AstroObject.Type.Star;
+            return testIfStar.GetAstroObjectType() == AstroObject.Type.Star;     
         }
 
-        public void Update()   //Keybinding code lovingly stolen from BlackHolePortalGun by NagelId, who added keybinding to BHPG specifically because I suggested it.
+        private void Update()   //Keybinding code lovingly stolen from BlackHolePortalGun by NagelId, who added keybinding to BHPG specifically because I suggested it.
         {
 
             if (!bRShrinkStars)  //GOAL: stop looking for the sun in growqueue, although don't add anything not already there
             {
-                foreach (var starSlashCenter in _starsAndCenters)                   //for each tinybody object in the _bR95growQueue,
+                foreach (var star in _foundStars)                   //for each tinybody object in the _bR95growQueue,
                 {
-                    if (starSlashCenter != null && StarHasSmallRigidbody(starSlashCenter) && !_bR95growQueue.Contains(starSlashCenter))
+                    if (star != null && StarHasSmallRigidbody(star) && !_bR95growQueue.Contains(star))
                     {
                         Instance.ModHelper.Console.WriteLine("Growing Stars...", MessageType.Debug);
-                        _bR95growQueue = _starsAndCenters;            //sends them to the growQueue
+                        _bR95growQueue = _foundStars;            //sends them to the growQueue
                     }
                 };
             }
-            foreach (var normalStar in _starsAndCenters)                     //All stars/centers instantly become small, without ceremony, without animation.  Might make this a method, might not idfk
+            foreach (var normalStar in _foundStars)                     //All stars/centers instantly become small, without ceremony, without animation.  Might make this a method, might not idfk
                 if (bRShrinkStars && !StarHasSmallRigidbody(normalStar))
                 {
                     normalStar.SetLocalScale(Vector3.one * 0.1f);                      
